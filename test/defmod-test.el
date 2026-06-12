@@ -10,8 +10,32 @@
 
 ;;; Code:
 
+(require 'cl-lib)
 (require 'ert)
 (require 'defmod)
+
+;;;; Fixture
+
+(defvar defmod-test--log nil
+  "Events recorded by behavioral tests, most recent first.")
+
+(defmacro defmod-test--with-fake-packages (feats &rest body)
+  "Run BODY with the package system stubbed for the symbols FEATS.
+`package-installed-p' answers t so Ensure never installs, and
+`require' simply `provide's its feature, simulating a successful
+load (which also fires `with-eval-after-load' bodies).  Fake
+features and their `after-load-alist' entries are cleaned up
+afterwards, and `defmod-test--log' starts empty."
+  (declare (indent 1))
+  `(cl-letf (((symbol-function 'package-installed-p) (lambda (&rest _) t))
+             ((symbol-function 'require)
+              (lambda (feature &rest _) (provide feature) feature)))
+     (setq defmod-test--log nil)
+     (unwind-protect
+         (progn ,@body)
+       (dolist (feat ',feats)
+         (setq features (delq feat features))
+         (setq after-load-alist (assq-delete-all feat after-load-alist))))))
 
 (ert-deftest defmod-test-feature-loads ()
   "The defmod feature is loadable."
@@ -137,6 +161,44 @@ non-Stage keywords like :defer."
   (let ((err (should-error (macroexpand-1 '(defmod foo :vc :config (a))))))
     (should (string-match-p "defmod foo: :vc needs a spec list" (cadr err))))
   (should-error (macroexpand-1 '(defmod foo :vc "https://example.com"))))
+
+;;;; Behavioral tests
+
+(ert-deftest defmod-test-behavior-defer-waits-for-load ()
+  "A :defer Block's :config runs when the package loads, not before."
+  (defmod-test--with-fake-packages (defmod-fake-foo)
+    (eval (macroexpand-1 '(defmod defmod-fake-foo
+                            :defer
+                            :config (push 'configured defmod-test--log)))
+          t)
+    (should-not defmod-test--log)
+    (provide 'defmod-fake-foo)
+    (should (equal defmod-test--log '(configured)))))
+
+(ert-deftest defmod-test-behavior-instant-runs-in-order ()
+  "An instant Block runs :init, loads, then runs :config, immediately."
+  (defmod-test--with-fake-packages (defmod-fake-bar)
+    (eval (macroexpand-1 '(defmod defmod-fake-bar
+                            :init (push 'init defmod-test--log)
+                            :config (push 'config defmod-test--log)))
+          t)
+    (should (equal (reverse defmod-test--log) '(init config)))
+    (should (featurep 'defmod-fake-bar))))
+
+(ert-deftest defmod-test-behavior-after-waits-for-all-features ()
+  "An :after Block loads and configures only when ALL features are in."
+  (defmod-test--with-fake-packages (defmod-fake-a defmod-fake-b
+                                                  defmod-fake-qux)
+    (eval (macroexpand-1 '(defmod defmod-fake-qux
+                            :after (defmod-fake-a defmod-fake-b)
+                            :config (push 'glued defmod-test--log)))
+          t)
+    (provide 'defmod-fake-a)
+    (should-not defmod-test--log)        ; one feature is not enough
+    (should-not (featurep 'defmod-fake-qux))
+    (provide 'defmod-fake-b)
+    (should (equal defmod-test--log '(glued)))
+    (should (featurep 'defmod-fake-qux)))) ; the package loaded itself
 
 (provide 'defmod-test)
 ;;; defmod-test.el ends here
