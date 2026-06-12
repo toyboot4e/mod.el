@@ -162,6 +162,13 @@ non-Stage keywords like :defer."
     (should (string-match-p "defmod foo: :vc needs a spec list" (cadr err))))
   (should-error (macroexpand-1 '(defmod foo :vc "https://example.com"))))
 
+(ert-deftest defmod-test-error-name-must-be-symbol ()
+  "The Block NAME is a plain symbol: a feature/package name."
+  (should-error (macroexpand-1 '(defmod "foo" :config (a))))
+  (should-error (macroexpand-1 '(defmod (foo) :config (a))))
+  (should-error (macroexpand-1 '(defmod :foo :config (a))))
+  (should-error (macroexpand-1 '(defmod nil :config (a)))))
+
 ;;;; Behavioral tests
 
 (ert-deftest defmod-test-behavior-defer-waits-for-load ()

@@ -22,7 +22,8 @@
 
 (defun defmod--parse (name body)
   "Parse BODY of the Block NAME with one forward pass.
-Return a plist with the Slots :mode, :init and :config."
+Return a plist with the Slots :mode, :features, :vc, :init and
+:config.  Signal an error on any strict-grammar violation."
   (let ((mode 'instant) (features nil) (vc nil)
         (init nil) (config nil) (stage nil) (seen nil))
     (while body
@@ -78,24 +79,37 @@ when the package-vc spec VC is non-nil."
 ;;;###autoload
 (defmacro defmod (name &rest body)
   "Configure the package NAME; Stages in BODY say when, never what.
-BODY is a flat keyword plist holding plain Elisp in Stages.  The
-package is installed when missing and, by default, `require'd at
-startup with the :config Stage run immediately after."
+
+NAME is the package and feature symbol.  BODY is a flat keyword
+plist holding plain Elisp; the keywords are:
+
+  :init FORMS...     run at startup, before the package can load
+  :config FORMS...   run once the package has loaded
+  :defer             load only when something autoloads the package
+  :after (FEATS...)  load as soon as all FEATS have loaded
+  :vc (SPEC...)      install from version control (package-vc spec)
+
+\:defer and :after are mutually exclusive; with neither, the
+package is `require'd at startup and :config runs immediately.
+The package is installed first whenever it is missing."
   (declare (indent defun))
-  (let ((slots (defmod--parse name body)))
+  (unless (and name (symbolp name) (not (keywordp name)))
+    (error "defmod: NAME must be a symbol, got %S" name))
+  (let* ((slots (defmod--parse name body))
+         (mode (plist-get slots :mode))
+         (config (plist-get slots :config)))
     `(progn
        ,(defmod--ensure-form name (plist-get slots :vc))
        ,@(plist-get slots :init)
-       ,@(let ((config (plist-get slots :config)))
-           (cond
-            ((eq (plist-get slots :mode) 'defer)
-             `((with-eval-after-load ',name ,@config)))
-            ((eq (plist-get slots :mode) 'after)
-             (let ((forms `((require ',name) ,@config)))
-               (dolist (feature (reverse (plist-get slots :features)))
-                 (setq forms `((with-eval-after-load ',feature ,@forms))))
-               forms))
-            (t `((require ',name) ,@config)))))))
+       ,@(cond
+          ((eq mode 'defer)
+           `((with-eval-after-load ',name ,@config)))
+          ((eq mode 'after)
+           (let ((forms `((require ',name) ,@config)))
+             (dolist (feature (reverse (plist-get slots :features)))
+               (setq forms `((with-eval-after-load ',feature ,@forms))))
+             forms))
+          (t `((require ',name) ,@config))))))
 
 (provide 'defmod)
 ;;; defmod.el ends here
