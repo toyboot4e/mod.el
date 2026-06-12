@@ -44,8 +44,18 @@ Return a plist with the Slots :mode, :init and :config."
            ((eq head :after)
             (unless (eq mode 'instant)
               (error "defmod %s: :after conflicts with :%s" name mode))
+            (let ((value (car body)))
+              (unless (and (proper-list-p value) value
+                           (seq-every-p #'symbolp value)
+                           (not (seq-some #'keywordp value)))
+                (error "defmod %s: :after needs a list of features, got %S"
+                       name value)))
             (setq features (pop body) mode 'after stage nil))
            ((eq head :vc)
+            (let ((value (car body)))
+              (unless (and (proper-list-p value) value)
+                (error "defmod %s: :vc needs a spec list, got %S"
+                       name value)))
             (setq vc (pop body) stage nil))))
          ((eq stage 'init) (push head init))
          ((eq stage 'config) (push head config))

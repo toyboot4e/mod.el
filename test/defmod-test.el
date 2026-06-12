@@ -123,5 +123,20 @@ non-Stage keywords like :defer."
                             (cadr err))))
   (should-error (macroexpand-1 '(defmod foo :after (bar) :defer :config (a)))))
 
+(ert-deftest defmod-test-error-after-needs-feature-list ()
+  "The first form after :after is always a list of feature symbols."
+  (let ((err (should-error (macroexpand-1 '(defmod foo :after :config (a))))))
+    (should (string-match-p "defmod foo: :after needs a list of features"
+                            (cadr err))))
+  (should-error (macroexpand-1 '(defmod foo :after bar :config (a))))
+  (should-error (macroexpand-1 '(defmod foo :after (bar "baz") :config (a))))
+  (should-error (macroexpand-1 '(defmod foo :after))))
+
+(ert-deftest defmod-test-error-vc-needs-spec ()
+  "The first form after :vc is always a package-vc spec list."
+  (let ((err (should-error (macroexpand-1 '(defmod foo :vc :config (a))))))
+    (should (string-match-p "defmod foo: :vc needs a spec list" (cadr err))))
+  (should-error (macroexpand-1 '(defmod foo :vc "https://example.com"))))
+
 (provide 'defmod-test)
 ;;; defmod-test.el ends here
