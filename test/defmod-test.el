@@ -96,5 +96,13 @@ Loading rides on Triggers installed in :init."
     (should (string-match-p "defmod foo: unknown keyword :bind"
                             (cadr err)))))
 
+(ert-deftest defmod-test-error-duplicate-keyword ()
+  "A repeated keyword is an expansion-time error."
+  (let ((err (should-error (macroexpand-1 '(defmod foo
+                                             :config (a)
+                                             :config (b))))))
+    (should (string-match-p "defmod foo: duplicate keyword :config"
+                            (cadr err)))))
+
 (provide 'defmod-test)
 ;;; defmod-test.el ends here

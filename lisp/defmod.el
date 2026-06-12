@@ -24,19 +24,24 @@
   "Parse BODY of the Block NAME with one forward pass.
 Return a plist with the Slots :mode, :init and :config."
   (let ((mode 'instant) (features nil) (vc nil)
-        (init nil) (config nil) (stage nil))
+        (init nil) (config nil) (stage nil) (seen nil))
     (while body
       (let ((head (pop body)))
         (cond
-         ((eq head :init) (setq stage 'init))
-         ((eq head :config) (setq stage 'config))
-         ((eq head :defer) (setq mode 'defer stage nil))
-         ((eq head :after)
-          (setq features (pop body) mode 'after stage nil))
-         ((eq head :vc)
-          (setq vc (pop body) stage nil))
          ((keywordp head)
-          (error "defmod %s: unknown keyword %s" name head))
+          (unless (memq head '(:init :config :defer :after :vc))
+            (error "defmod %s: unknown keyword %s" name head))
+          (when (memq head seen)
+            (error "defmod %s: duplicate keyword %s" name head))
+          (push head seen)
+          (cond
+           ((eq head :init) (setq stage 'init))
+           ((eq head :config) (setq stage 'config))
+           ((eq head :defer) (setq mode 'defer stage nil))
+           ((eq head :after)
+            (setq features (pop body) mode 'after stage nil))
+           ((eq head :vc)
+            (setq vc (pop body) stage nil))))
          ((eq stage 'init) (push head init))
          ((eq stage 'config) (push head config))
          (t (error "defmod %s: form belongs to no stage: %S" name head)))))
