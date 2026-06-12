@@ -37,7 +37,10 @@ lint:
     "{{ emacs }}" -Q --batch -l package-lint \
         --eval '(setq package-lint-main-file "lisp/defmod.el")' \
         -f package-lint-batch-and-exit lisp/*.el
-    out=$("{{ emacs }}" -Q --batch \
+    # Load the package first: checkdoc accepts message text starting with
+    # a DEFINED symbol, which is how the "defmod NAME: ..." error format
+    # passes the capitalization check.
+    out=$("{{ emacs }}" -Q --batch -L lisp -l defmod \
         --eval '(dolist (f (directory-files "lisp" t "\\.el$")) (checkdoc-file f))' 2>&1)
     if [ -n "$out" ]; then
         echo "$out"

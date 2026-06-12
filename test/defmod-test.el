@@ -17,5 +17,18 @@
   "The defmod feature is loadable."
   (should (featurep 'defmod)))
 
+;;;; Golden expansion tests
+
+(ert-deftest defmod-test-instant-expansion ()
+  "An undecorated Block ensures, requires at startup, then runs :config."
+  (should (equal (macroexpand-1 '(defmod foo :config (foo-setup)))
+                 '(progn
+                    (unless (package-installed-p 'foo)
+                      (unless (assq 'foo package-archive-contents)
+                        (package-refresh-contents))
+                      (package-install 'foo))
+                    (require 'foo)
+                    (foo-setup)))))
+
 (provide 'defmod-test)
 ;;; defmod-test.el ends here
