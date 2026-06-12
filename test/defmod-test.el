@@ -50,6 +50,18 @@ Loading rides on Triggers installed in :init."
                         (require 'foo)
                         (foo-glue)))))))
 
+(ert-deftest defmod-test-vc-expansion ()
+  "A :vc Block ensures via package-vc-install with the spec verbatim."
+  (should (equal (macroexpand-1 '(defmod foo
+                                   :vc (:url "https://example.com/foo")
+                                   :config (foo-setup)))
+                 '(progn
+                    (unless (package-installed-p 'foo)
+                      (package-vc-install
+                       '(foo :url "https://example.com/foo")))
+                    (require 'foo)
+                    (foo-setup)))))
+
 (ert-deftest defmod-test-init-runs-before-require ()
   "The :init Stage runs at startup, before the package loads."
   (should (equal (macroexpand-1 '(defmod foo

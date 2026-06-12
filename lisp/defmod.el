@@ -23,7 +23,8 @@
 (defun defmod--parse (name body)
   "Parse BODY of the Block NAME with one forward pass.
 Return a plist with the Slots :mode, :init and :config."
-  (let ((mode 'instant) (features nil) (init nil) (config nil) (stage nil))
+  (let ((mode 'instant) (features nil) (vc nil)
+        (init nil) (config nil) (stage nil))
     (while body
       (let ((head (pop body)))
         (cond
@@ -32,18 +33,25 @@ Return a plist with the Slots :mode, :init and :config."
          ((eq head :defer) (setq mode 'defer stage nil))
          ((eq head :after)
           (setq features (pop body) mode 'after stage nil))
+         ((eq head :vc)
+          (setq vc (pop body) stage nil))
          ((eq stage 'init) (push head init))
          ((eq stage 'config) (push head config))
          (t (error "defmod %s: form belongs to no stage: %S" name head)))))
-    (list :mode mode :features features
+    (list :mode mode :features features :vc vc
           :init (nreverse init) :config (nreverse config))))
 
-(defun defmod--ensure-form (name)
-  "Return the Ensure form installing NAME from the package archives."
-  `(unless (package-installed-p ',name)
-     (unless (assq ',name package-archive-contents)
-       (package-refresh-contents))
-     (package-install ',name)))
+(defun defmod--ensure-form (name vc)
+  "Return the Ensure form installing NAME when it is missing.
+The source is the package archives, or a version-control checkout
+when the package-vc spec VC is non-nil."
+  (if vc
+      `(unless (package-installed-p ',name)
+         (package-vc-install '(,name ,@vc)))
+    `(unless (package-installed-p ',name)
+       (unless (assq ',name package-archive-contents)
+         (package-refresh-contents))
+       (package-install ',name))))
 
 ;;;###autoload
 (defmacro defmod (name &rest body)
@@ -54,7 +62,7 @@ startup with the :config Stage run immediately after."
   (declare (indent defun))
   (let ((slots (defmod--parse name body)))
     `(progn
-       ,(defmod--ensure-form name)
+       ,(defmod--ensure-form name (plist-get slots :vc))
        ,@(plist-get slots :init)
        ,@(let ((config (plist-get slots :config)))
            (cond
