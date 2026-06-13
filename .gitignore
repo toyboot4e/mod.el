@@ -2,6 +2,7 @@
 .stage/
 result
 result-*
+.direnv/
 
 # local defmod playground (not committed)
 /tmp/

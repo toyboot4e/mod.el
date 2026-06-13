@@ -3,6 +3,8 @@
 emacs := "emacs"
 stage := ".stage"
 
+set script-interpreter := ['bash', '-euo', 'pipefail']
+
 default: ci
 
 # runs all the checks for CI
@@ -12,9 +14,8 @@ ci: compile lint test
 alias c := compile
 
 # staged byte-compilation with warnings as errors.
+[script]
 compile:
-    #!/usr/bin/env bash
-    set -euo pipefail
     rm -rf "{{ stage }}" && mkdir -p "{{ stage }}"
     cp lisp/defmod.el "{{ stage }}/"
     "{{ emacs }}" -Q --batch -L "{{ stage }}" \
@@ -35,9 +36,8 @@ test:
 alias l := lint
 
 # applies package-lint and checkdoc.
+[script]
 lint:
-    #!/usr/bin/env bash
-    set -euo pipefail
     # package-lint, with ONE category false-positive suppressed: defmod
     # EMITS user configuration, so `with-eval-after-load' in the generated
     # code is that macro's sanctioned use, not a library misusing load
