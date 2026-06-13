@@ -130,6 +130,26 @@ The stubs come before :init; the file is the package name."
                     (require 'foo)
                     (foo-setup)))))
 
+(ert-deftest defmod-test-if-expansion ()
+  "`:if' gates the whole Block -- Ensure, load and Stages -- on a condition."
+  (should (equal (macroexpand-1 '(defmod foo
+                                   :if (display-graphic-p)
+                                   :config (foo-setup)))
+                 '(when (display-graphic-p)
+                    (progn
+                      (unless (package-installed-p 'foo)
+                        (unless (assq 'foo package-archive-contents)
+                          (package-refresh-contents))
+                        (package-install 'foo))
+                      (require 'foo)
+                      (foo-setup))))))
+
+(ert-deftest defmod-test-if-nil-is-not-absent ()
+  "`:if nil' still wraps in (when nil ...); it is not treated as omitted."
+  (should (eq 'when (car-safe (macroexpand-1 '(defmod foo :if nil :config (a))))))
+  ;; An omitted :if leaves the bare progn, no wrapper.
+  (should (eq 'progn (car-safe (macroexpand-1 '(defmod foo :config (a)))))))
+
 ;;;; Strict-grammar error tests
 
 (ert-deftest defmod-test-error-unknown-keyword ()

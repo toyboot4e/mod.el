@@ -40,14 +40,16 @@ NAME, KEYWORD and NOUN compose the error for Block NAME's KEYWORD."
 (defun defmod--parse (name body)
   "Parse BODY of the Block NAME with one forward pass.
 Return a plist with the Slots :mode, :features, :autoloads, :vc,
-:init and :config.  Signal an error on any strict-grammar violation."
+:init and :config, plus :if when an :if condition is present.
+Signal an error on any strict-grammar violation."
   (let ((mode 'instant) (features nil) (autoloads nil) (vc nil)
-        (init nil) (config nil) (stage nil) (seen nil))
+        (init nil) (config nil) (stage nil) (seen nil)
+        (condition nil) (if-p nil))
     (while body
       (let ((head (pop body)))
         (cond
          ((keywordp head)
-          (unless (memq head '(:init :config :defer :autoload :after :vc))
+          (unless (memq head '(:init :config :defer :autoload :after :vc :if))
             (error "defmod %s: unknown keyword %s" name head))
           (when (memq head seen)
             (error "defmod %s: duplicate keyword %s" name head))
@@ -67,12 +69,16 @@ Return a plist with the Slots :mode, :features, :autoloads, :vc,
             (let ((value (car body)))
               (unless (and (proper-list-p value) value)
                 (error "defmod %s: :vc needs a spec list, got %S" name value)))
-            (setq vc (pop body) stage nil))))
+            (setq vc (pop body) stage nil))
+           ((eq head :if)
+            (setq condition (pop body) if-p t stage nil))))
          ((eq stage 'init) (push head init))
          ((eq stage 'config) (push head config))
          (t (error "defmod %s: form belongs to no stage: %S" name head)))))
-    (list :mode mode :features features :autoloads autoloads :vc vc
-          :init (nreverse init) :config (nreverse config))))
+    (append
+     (list :mode mode :features features :autoloads autoloads :vc vc
+           :init (nreverse init) :config (nreverse config))
+     (and if-p (list :if condition)))))
 
 (defun defmod--ensure-form (name vc)
   "Return the Ensure form installing NAME when it is missing.
@@ -99,30 +105,38 @@ plist holding plain Elisp; the keywords are:
   :autoload (CMDS)   like :defer, but autoload CMDS so they trigger it
   :after (FEATS...)  load as soon as all FEATS have loaded
   :vc (SPEC...)      install from version control (package-vc spec)
+  :if COND           gate the whole Block on COND; skip it when COND is nil
 
 \:defer, :autoload and :after are mutually exclusive Load Modes;
 with none, the package is `require'd at startup and :config runs
-immediately.  The package is installed first whenever it is missing."
+immediately.  The package is installed first whenever it is missing.
+With :if, the entire expansion -- Ensure included -- is wrapped so
+the Block does nothing unless COND evaluates non-nil."
   (declare (indent defun))
   (unless (and name (symbolp name) (not (keywordp name)))
     (error "defmod: NAME must be a symbol, got %S" name))
   (let* ((slots (defmod--parse name body))
          (mode (plist-get slots :mode))
-         (config (plist-get slots :config)))
-    `(progn
-       ,(defmod--ensure-form name (plist-get slots :vc))
-       ,@(mapcar (lambda (cmd) `(autoload ',cmd ,(symbol-name name) nil t))
-                 (plist-get slots :autoloads))
-       ,@(plist-get slots :init)
-       ,@(cond
-          ((memq mode '(defer autoload))
-           `((with-eval-after-load ',name ,@config)))
-          ((eq mode 'after)
-           (let ((forms `((require ',name) ,@config)))
-             (dolist (feature (reverse (plist-get slots :features)))
-               (setq forms `((with-eval-after-load ',feature ,@forms))))
-             forms))
-          (t `((require ',name) ,@config))))))
+         (config (plist-get slots :config))
+         (form
+          `(progn
+             ,(defmod--ensure-form name (plist-get slots :vc))
+             ,@(mapcar (lambda (cmd) `(autoload ',cmd ,(symbol-name name) nil t))
+                       (plist-get slots :autoloads))
+             ,@(plist-get slots :init)
+             ,@(cond
+                ((memq mode '(defer autoload))
+                 `((with-eval-after-load ',name ,@config)))
+                ((eq mode 'after)
+                 (let ((forms `((require ',name) ,@config)))
+                   (dolist (feature (reverse (plist-get slots :features)))
+                     (setq forms `((with-eval-after-load ',feature ,@forms))))
+                   forms))
+                (t `((require ',name) ,@config))))))
+    ;; :if gates the whole Block; an absent :if leaves the bare progn.
+    (if (plist-member slots :if)
+        `(when ,(plist-get slots :if) ,form)
+      form)))
 
 (provide 'defmod)
 ;;; defmod.el ends here

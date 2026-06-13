@@ -24,6 +24,7 @@ write yourself; the expansion is exactly the code you would write by hand.
 
 ```
 (defmod NAME
+  [:if COND]                 ; skip the whole Block unless COND is non-nil
   [:vc (SPEC...)]            ; install from VC (package-vc spec) instead of archives
   [:defer | :autoload (CMDS...) | :after (FEATS...)]
   [:init FORMS...]           ; run at startup
@@ -40,14 +41,18 @@ write yourself; the expansion is exactly the code you would write by hand.
   for each, so your `:init` triggers can load the package.
 - **`:after (FEATS...)`:** the package is `require`d the moment all FEATS
   have loaded.
+- **`:if COND`:** gates the whole Block — Ensure, load and Stages — on `COND`;
+  when `COND` is nil the Block expands to a no-op, installing and loading
+  nothing. Composes with any Load Mode.
 - Every Block installs its package first when missing (package.el, or
   package-vc with `:vc`).
 - The grammar is strict: unknown keywords, duplicate keywords, forms outside
   a stage, and `:defer` + `:after` together are expansion-time errors.
 
-There are no operation keywords (`:bind`, `:hook`, `:custom`, ...) and no
-conditions (`:when`) — that is plain Elisp, written in a stage or around the
-Block. See `CONTEXT.md` for the project glossary and `docs/adr/` for why.
+There are no operation keywords (`:bind`, `:hook`, `:custom`, ...) — that is
+plain Elisp, written in a stage. Conditional loading is the one bit of control
+flow defmod schedules: `:if` (see `docs/adr/0005`). See `CONTEXT.md` for the
+project glossary and `docs/adr/` for why.
 
 ## Expansion
 
@@ -144,6 +149,24 @@ passing the spec verbatim; the rest of the Load Mode is unchanged:
      '(foo :url "https://example.com/foo")))
   (require 'foo)
   (foo-setup))
+```
+
+**`:if COND`** — wraps the entire expansion in `when`, so a nil `COND` skips
+install and load alike (composes with every Load Mode and `:vc`):
+
+```elisp
+(defmod foo
+  :if (executable-find "foo")
+  :config (foo-setup))
+;; ⇒
+(when (executable-find "foo")
+  (progn
+    (unless (package-installed-p 'foo)
+      (unless (assq 'foo package-archive-contents)
+        (package-refresh-contents))
+      (package-install 'foo))
+    (require 'foo)
+    (foo-setup)))
 ```
 
 ## Bootstrapping
