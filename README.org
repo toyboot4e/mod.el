@@ -34,20 +34,20 @@ write yourself; the expansion is exactly the code you would write by hand.
 #+end_example
 
 - *Instant (default):* =require= at startup, =:config= right after.
-- *=:defer=:* nothing loads at startup; loading rides on the package's own
+- =:defer=: nothing loads at startup; loading rides on the package's own
   autoloads, triggered by whatever you registered in =:init= (a keybinding,
   a hook, an =auto-mode-alist= entry). =:config= waits in
   =with-eval-after-load=.
-- *=:autoload (CMDS...)=:* like =:defer=, but for packages that /don't/
+- =:autoload (CMDS...)=: like =:defer=, but for packages that /don't/
   autoload their own entry commands — defmod emits =(autoload 'cmd "NAME" …)=
   for each, so your =:init= triggers can load the package.
-- *=:after (FEATS...)=:* the package is =require='d the moment all FEATS
+- =:after (FEATS...)=: the package is =require='d the moment all FEATS
   have loaded.
-- *=:if COND=:* gates the whole Block — Ensure, load and Stages — on =COND=;
+- =:if COND=: gates the whole Block — Ensure, load and Stages — on =COND=;
   when =COND= is nil the Block expands to a no-op, installing and loading
   nothing. Composes with any Load Mode.
 - Every Block installs its package first when missing (package.el, or
-  package-vc with =:vc=) — unless *=:builtin=* says NAME is provided outside
+  package-vc with =:vc=) — unless =:builtin= says NAME is provided outside
   package.el (a built-in like =proced=, or installed by other means), in which
   case Ensure is skipped. =:builtin= and =:vc= cannot be combined.
 - The grammar is strict: unknown keywords, duplicate keywords, forms outside
@@ -84,7 +84,7 @@ actual macro, so these can never drift from the code.
   (require 'foo) (foo-setup))
 #+end_src
 
-*=:defer=* — =:init= runs at startup to register triggers; =:config= waits in
+=:defer= — =:init= runs at startup to register triggers; =:config= waits in
 =with-eval-after-load=, and nothing =require='s =foo= directly:
 
 #+begin_src emacs-lisp :results code :wrap "src emacs-lisp :eval no" :exports both
@@ -106,7 +106,7 @@ actual macro, so these can never drift from the code.
   (with-eval-after-load 'foo (foo-setup)))
 #+end_src
 
-*=:autoload (CMDS...)=* — like =:defer=, plus an =autoload= stub per command
+=:autoload (CMDS...)= — like =:defer=, plus an =autoload= stub per command
 (the file is the package name) so a trigger can load the package:
 
 #+begin_src emacs-lisp :results code :wrap "src emacs-lisp :eval no" :exports both
@@ -129,7 +129,7 @@ actual macro, so these can never drift from the code.
   (with-eval-after-load 'foo (foo-setup)))
 #+end_src
 
-*=:after (FEATS...)=* — the =require= and =:config= nest inside one
+=:after (FEATS...)= — the =require= and =:config= nest inside one
 =with-eval-after-load= per feature, firing only when the last feature loads:
 
 #+begin_src emacs-lisp :results code :wrap "src emacs-lisp :eval no" :exports both
@@ -150,7 +150,7 @@ actual macro, so these can never drift from the code.
     (with-eval-after-load 'baz (require 'foo) (foo-glue))))
 #+end_src
 
-*=:vc (SPEC...)=* — swaps only the install step for =package-vc-install=,
+=:vc (SPEC...)= — swaps only the install step for =package-vc-install=,
 passing the spec verbatim; the rest of the Load Mode is unchanged:
 
 #+begin_src emacs-lisp :results code :wrap "src emacs-lisp :eval no" :exports both
@@ -168,7 +168,7 @@ passing the spec verbatim; the rest of the Load Mode is unchanged:
   (require 'foo) (foo-setup))
 #+end_src
 
-*=:builtin=* — drops the Ensure step; everything else is unchanged, so a
+=:builtin= — drops the Ensure step; everything else is unchanged, so a
 built-in or otherwise-provided package is loaded and configured without any
 install attempt:
 
@@ -184,7 +184,7 @@ install attempt:
 (progn (require 'proced) (setopt proced-auto-update-flag t))
 #+end_src
 
-*=:if COND=* — wraps the entire expansion in =when=, so a nil =COND= skips
+=:if COND= — wraps the entire expansion in =when=, so a nil =COND= skips
 install and load alike (composes with every Load Mode and =:vc=):
 
 #+begin_src emacs-lisp :results code :wrap "src emacs-lisp :eval no" :exports both
